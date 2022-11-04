@@ -9,8 +9,8 @@ class Configuration implements ConfigurationInterface
 {
     public function getConfigTreeBuilder()
     {
-        $treeBuilder = new TreeBuilder();
-        $rootNode = $treeBuilder->root('escape_wsse_authentication');
+        $treeBuilder = new TreeBuilder('escape_wsse_authentication');
+        $rootNode = $treeBuilder->getRootNode();
 
         $rootNode
             ->children()
