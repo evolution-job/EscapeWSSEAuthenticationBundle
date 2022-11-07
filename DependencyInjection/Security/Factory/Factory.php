@@ -13,7 +13,7 @@ class Factory implements SecurityFactoryInterface
     private $encoderId;
     private $nonceCacheId;
 
-    public function create(ContainerBuilder $container, $id, $config, $userProviderId, $defaultEntryPoint)
+    public function create(ContainerBuilder $container, $id, $config, $userProvider, $defaultEntryPoint): array
     {
         $this->encoderId = 'escape_wsse_authentication.encoder.'.$id;
 
@@ -49,14 +49,14 @@ class Factory implements SecurityFactoryInterface
 
         $container
             ->setDefinition($providerId, new ChildDefinition('escape_wsse_authentication.provider'))
-            ->replaceArgument(1, new Reference($userProviderId))
+            ->replaceArgument(1, new Reference($userProvider))
             ->replaceArgument(2, $id)
             ->replaceArgument(3, new Reference($this->encoderId))
             ->replaceArgument(4, new Reference($this->nonceCacheId))
             ->replaceArgument(5, $config['lifetime'])
             ->replaceArgument(6, $config['date_format']);
 
-        $entryPointId = $this->createEntryPoint($container, $id, $config, $defaultEntryPoint);
+        $entryPointId = $this->createEntryPoint($container, $id, $config);
 
         $listenerId = 'escape_wsse_authentication.listener.'.$id;
 
@@ -68,12 +68,12 @@ class Factory implements SecurityFactoryInterface
         return array($providerId, $listenerId, $entryPointId);
     }
 
-    public function getPosition()
+    public function getPosition(): string
     {
         return 'pre_auth';
     }
 
-    public function getKey()
+    public function getKey(): string
     {
         return 'wsse';
     }
@@ -88,9 +88,9 @@ class Factory implements SecurityFactoryInterface
         return $this->nonceCacheId;
     }
 
-    public function addConfiguration(NodeDefinition $node)
+    public function addConfiguration(NodeDefinition $builder)
     {
-        $node
+        $builder
             ->children()
                 ->scalarNode('provider')->end()
                 ->scalarNode('realm')->defaultValue(null)->end()
@@ -110,7 +110,7 @@ class Factory implements SecurityFactoryInterface
             ->end();
     }
 
-    protected function createEntryPoint($container, $id, $config, $defaultEntryPoint)
+    protected function createEntryPoint($container, $id, $config): string
     {
         $entryPointId = 'escape_wsse_authentication.entry_point.'.$id;
 

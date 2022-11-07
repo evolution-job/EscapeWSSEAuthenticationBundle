@@ -2,9 +2,9 @@
 
 namespace Escape\WSSEAuthenticationBundle\Security\Http\Firewall;
 
+use InvalidArgumentException;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
-use Symfony\Component\HttpKernel\Event\GetResponseEvent;
 use Symfony\Component\HttpKernel\Event\RequestEvent;
 use Symfony\Component\Security\Core\Authentication\AuthenticationManagerInterface;
 use Symfony\Component\Security\Core\Authentication\Token\Storage\TokenStorageInterface;
@@ -14,8 +14,6 @@ use Symfony\Component\Security\Core\Exception\AuthenticationException;
 use Symfony\Component\Security\Core\SecurityContextInterface;
 use Symfony\Component\Security\Http\EntryPoint\AuthenticationEntryPointInterface;
 use Symfony\Component\Security\Http\Firewall\AbstractListener;
-use Symfony\Component\Security\Http\Firewall\ListenerInterface;
-
 use UnexpectedValueException;
 
 class Listener extends AbstractListener
@@ -50,10 +48,9 @@ class Listener extends AbstractListener
         AuthenticationManagerInterface $authenticationManager,
         $providerKey,
         AuthenticationEntryPointInterface $authenticationEntryPoint
-    )
-    {
+    ) {
         if (!$tokenStorage instanceof TokenStorageInterface && !$tokenStorage instanceof SecurityContextInterface) {
-            throw new \InvalidArgumentException('Argument 1 should be an instance of Symfony\Component\Security\Core\Authentication\Token\Storage\TokenStorageInterface or Symfony\Component\Security\Core\SecurityContextInterface');
+            throw new InvalidArgumentException('Argument 1 should be an instance of Symfony\Component\Security\Core\Authentication\Token\Storage\TokenStorageInterface or Symfony\Component\Security\Core\SecurityContextInterface');
         }
 
         $this->tokenStorage = $tokenStorage;
@@ -72,8 +69,7 @@ class Listener extends AbstractListener
         $request = $event->getRequest();
 
         //find out if the current request contains any information by which the user might be authenticated
-        if(!$request->headers->has('X-WSSE'))
-        {
+        if (!$request->headers->has('X-WSSE')) {
             return;
         }
 
@@ -81,8 +77,7 @@ class Listener extends AbstractListener
         $this->wsseHeader = $request->headers->get('X-WSSE');
         $wsseHeaderInfo = $this->parseHeader();
 
-        if($wsseHeaderInfo !== false)
-        {
+        if ($wsseHeaderInfo !== false) {
             $token = new Token(
                 $wsseHeaderInfo['Username'],
                 $wsseHeaderInfo['PasswordDigest'],
@@ -92,21 +87,17 @@ class Listener extends AbstractListener
             $token->setAttribute('nonce', $wsseHeaderInfo['Nonce']);
             $token->setAttribute('created', $wsseHeaderInfo['Created']);
 
-            try
-            {
+            try {
                 $returnValue = $this->authenticationManager->authenticate($token);
 
-                if($returnValue instanceof TokenInterface)
-                {
+                if ($returnValue instanceof TokenInterface) {
                     return $this->tokenStorage->setToken($returnValue);
                 }
-                else if($returnValue instanceof Response)
-                {
+
+                if ($returnValue instanceof Response) {
                     return $event->setResponse($returnValue);
                 }
-            }
-            catch(AuthenticationException $ae)
-            {
+            } catch (AuthenticationException $ae) {
                 $event->setResponse($this->authenticationEntryPoint->start($request, $ae));
             }
         }
@@ -117,12 +108,11 @@ class Listener extends AbstractListener
      *
      * @param $key
      * @return mixed
-     * @throws \UnexpectedValueException
+     * @throws UnexpectedValueException
      */
     private function parseValue($key)
     {
-        if(!preg_match('/'.$key.'="([^"]+)"/', $this->wsseHeader, $matches))
-        {
+        if (!preg_match('/' . $key . '="([^"]+)"/', $this->wsseHeader, $matches)) {
             throw new UnexpectedValueException('The string was not found');
         }
 
@@ -131,7 +121,7 @@ class Listener extends AbstractListener
 
     /**
      * This method parses the X-WSSE header
-     * 
+     *
      * If Username, PasswordDigest, Nonce and Created exist then it returns their value,
      * otherwise the method returns false.
      *
@@ -139,17 +129,14 @@ class Listener extends AbstractListener
      */
     private function parseHeader()
     {
-        $result = array();
+        $result = [];
 
-        try
-        {
+        try {
             $result['Username'] = $this->parseValue('Username');
             $result['PasswordDigest'] = $this->parseValue('PasswordDigest');
             $result['Nonce'] = $this->parseValue('Nonce');
             $result['Created'] = $this->parseValue('Created');
-        }
-        catch(UnexpectedValueException $e)
-        {
+        } catch (UnexpectedValueException $e) {
             return false;
         }
 
