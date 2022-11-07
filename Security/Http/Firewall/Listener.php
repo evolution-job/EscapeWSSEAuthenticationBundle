@@ -2,16 +2,13 @@
 
 namespace Escape\WSSEAuthenticationBundle\Security\Http\Firewall;
 
-use InvalidArgumentException;
 use Symfony\Component\HttpFoundation\Request;
-use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\HttpKernel\Event\RequestEvent;
 use Symfony\Component\Security\Core\Authentication\AuthenticationManagerInterface;
 use Symfony\Component\Security\Core\Authentication\Token\Storage\TokenStorageInterface;
 use Symfony\Component\Security\Core\Authentication\Token\TokenInterface;
 use Symfony\Component\Security\Core\Authentication\Token\UsernamePasswordToken as Token;
 use Symfony\Component\Security\Core\Exception\AuthenticationException;
-use Symfony\Component\Security\Core\SecurityContextInterface;
 use Symfony\Component\Security\Http\EntryPoint\AuthenticationEntryPointInterface;
 use Symfony\Component\Security\Http\Firewall\AbstractListener;
 use UnexpectedValueException;
@@ -19,61 +16,55 @@ use UnexpectedValueException;
 class Listener extends AbstractListener
 {
     /**
-     * @var string WSSE header
+     * @var TokenStorageInterface
      */
-    private $wsseHeader;
-
-    /**
-     * @var SecurityContextInterface|TokenStorageInterface
-     */
-    protected $tokenStorage;
+    protected TokenStorageInterface $tokenStorage;
 
     /**
      * @var AuthenticationManagerInterface
      */
-    protected $authenticationManager;
+    protected AuthenticationManagerInterface $authenticationManager;
 
     /**
      * @var string Uniquely identifies the secured area
      */
-    protected $providerKey;
+    protected string $providerKey;
 
     /**
      * @var AuthenticationEntryPointInterface
      */
-    protected $authenticationEntryPoint;
+    protected AuthenticationEntryPointInterface $authenticationEntryPoint;
+
+    /**
+     * @var string WSSE header
+     */
+    private string $wsseHeader;
 
     public function __construct(
-        $tokenStorage,
+        TokenStorageInterface $tokenStorage,
         AuthenticationManagerInterface $authenticationManager,
-        $providerKey,
+        string $providerKey,
         AuthenticationEntryPointInterface $authenticationEntryPoint
     ) {
-        if (!$tokenStorage instanceof TokenStorageInterface && !$tokenStorage instanceof SecurityContextInterface) {
-            throw new InvalidArgumentException('Argument 1 should be an instance of Symfony\Component\Security\Core\Authentication\Token\Storage\TokenStorageInterface or Symfony\Component\Security\Core\SecurityContextInterface');
-        }
-
-        $this->tokenStorage = $tokenStorage;
+        $this->authenticationEntryPoint = $authenticationEntryPoint;
         $this->authenticationManager = $authenticationManager;
         $this->providerKey = $providerKey;
-        $this->authenticationEntryPoint = $authenticationEntryPoint;
+        $this->tokenStorage = $tokenStorage;
     }
 
-    public function supports(Request $request): ?bool
-    {
-        return $request->headers->has('X-WSSE');
-    }
-
-    public function authenticate(RequestEvent $event)
+    /**
+     * @param RequestEvent $event
+     * @return TokenInterface|null
+     */
+    public function authenticate(RequestEvent $event): ?TokenInterface
     {
         $request = $event->getRequest();
 
-        //find out if the current request contains any information by which the user might be authenticated
+        // Find out if the current request contains any information by which the user might be authenticated
         if (!$request->headers->has('X-WSSE')) {
-            return;
+            return null;
         }
 
-        $ae_message = null;
         $this->wsseHeader = $request->headers->get('X-WSSE');
         $wsseHeaderInfo = $this->parseHeader();
 
@@ -87,36 +78,26 @@ class Listener extends AbstractListener
             $token->setAttribute('nonce', $wsseHeaderInfo['Nonce']);
             $token->setAttribute('created', $wsseHeaderInfo['Created']);
 
-            try {
-                $returnValue = $this->authenticationManager->authenticate($token);
+            $auth = $this->authenticationManager->authenticate($token);
+            if ($auth instanceof TokenInterface) {
+                $this->tokenStorage->setToken($auth);
 
-                if ($returnValue instanceof TokenInterface) {
-                    return $this->tokenStorage->setToken($returnValue);
-                }
-
-                if ($returnValue instanceof Response) {
-                    return $event->setResponse($returnValue);
-                }
-            } catch (AuthenticationException $ae) {
-                $event->setResponse($this->authenticationEntryPoint->start($request, $ae));
+                return $auth;
             }
+
+            $event->setResponse($this->authenticationEntryPoint->start($request, new AuthenticationException()));
         }
+
+        return null;
     }
 
     /**
-     * This method returns the value of a bit header by the key
-     *
-     * @param $key
-     * @return mixed
-     * @throws UnexpectedValueException
+     * @param Request $request
+     * @return bool|null
      */
-    private function parseValue($key)
+    public function supports(Request $request): ?bool
     {
-        if (!preg_match('/' . $key . '="([^"]+)"/', $this->wsseHeader, $matches)) {
-            throw new UnexpectedValueException('The string was not found');
-        }
-
-        return $matches[1];
+        return $request->headers->has('X-WSSE');
     }
 
     /**
@@ -141,5 +122,21 @@ class Listener extends AbstractListener
         }
 
         return $result;
+    }
+
+    /**
+     * This method returns the value of a bit header by the key
+     *
+     * @param $key
+     * @return mixed
+     * @throws UnexpectedValueException
+     */
+    private function parseValue($key)
+    {
+        if (!preg_match('/' . $key . '="([^"]+)"/', $this->wsseHeader, $matches)) {
+            throw new UnexpectedValueException('The string was not found');
+        }
+
+        return $matches[1];
     }
 }

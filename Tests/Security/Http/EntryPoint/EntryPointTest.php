@@ -4,27 +4,30 @@ namespace Escape\WSSEAuthenticationBundle\Tests\Security\Http\EntryPoint;
 
 use Escape\WSSEAuthenticationBundle\Security\Http\EntryPoint\EntryPoint;
 
+use PHPUnit\Framework\TestCase;
 use Symfony\Component\Security\Core\Exception\AuthenticationException;
+use Psr\Log\LoggerInterface;
+use Symfony\Component\HttpFoundation\Request;
 
-class EntryPointTest extends \PHPUnit_Framework_TestCase
+class EntryPointTest extends TestCase
 {
-    protected function setUp()
+    protected function setUp(): void
     {
-        if(!interface_exists('Psr\Log\LoggerInterface'))
+        if(!interface_exists(LoggerInterface::class))
         {
             $this->markTestSkipped('Interface "Psr\Log\LoggerInterface" is not available');
         }
 
-        if(!class_exists('Symfony\Component\HttpFoundation\Request'))
+        if(!class_exists(Request::class))
         {
             $this->markTestSkipped('The "HttpFoundation" component is not available');
         }
     }
 
-    public function testStart()
+    public function testStart(): void
     {
-        $logger = $this->createMock('Psr\Log\LoggerInterface');
-        $request = $this->createMock('Symfony\Component\HttpFoundation\Request');
+        $logger = $this->createMock(LoggerInterface::class);
+        $request = $this->createMock(Request::class);
         $realm = 'TheRealm';
         $profile = 'TheProfile';
 
@@ -45,10 +48,10 @@ class EntryPointTest extends \PHPUnit_Framework_TestCase
         );
     }
 
-    public function testStartWithNoException()
+    public function testStartWithNoException(): void
     {
-        $logger = $this->createMock('Psr\Log\LoggerInterface');
-        $request = $this->createMock('Symfony\Component\HttpFoundation\Request');
+        $logger = $this->createMock(LoggerInterface::class);
+        $request = $this->createMock(Request::class);
         $realm = 'TheRealm';
         $profile = 'TheProfile';
 

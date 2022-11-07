@@ -41,7 +41,7 @@ class EntryPoint implements AuthenticationEntryPointInterface
             )
         );
 
-        $response->setStatusCode(401);//unauthorized
+        $response->setStatusCode(Response::HTTP_UNAUTHORIZED);
 
         return $response;
     }

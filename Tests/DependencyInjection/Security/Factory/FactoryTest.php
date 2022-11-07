@@ -3,26 +3,20 @@
 namespace Escape\WSSEAuthenticationBundle\Tests\DependencyInjection\Security\Factory;
 
 use Escape\WSSEAuthenticationBundle\DependencyInjection\Security\Factory\Factory;
-
+use PHPUnit\Framework\TestCase;
 use Symfony\Component\DependencyInjection\ContainerBuilder;
 use Symfony\Component\DependencyInjection\Reference;
 
-class FactoryTest extends \PHPUnit_Framework_TestCase
+class FactoryTest extends TestCase
 {
-    /**
-     * @test
-     */
-    public function getPosition()
+    public function testPosition(): void
     {
         $factory = new Factory();
         $result = $factory->getPosition();
         $this->assertEquals('pre_auth', $result);
     }
 
-    /**
-     * @test
-     */
-    public function getKey()
+    public function testKey(): void
     {
         $factory = new Factory();
         $result = $factory->getKey();
@@ -32,10 +26,10 @@ class FactoryTest extends \PHPUnit_Framework_TestCase
 
     protected function getFactory()
     {
-        return $this->getMockForAbstractClass('Escape\WSSEAuthenticationBundle\DependencyInjection\Security\Factory\Factory', array());
+        return $this->getMockForAbstractClass(Factory::class, []);
     }
 
-    public function testCreate()
+    public function testCreate(): void
     {
         $factory = $this->getFactory();
 
@@ -51,25 +45,25 @@ class FactoryTest extends \PHPUnit_Framework_TestCase
         $encodeHashAsBase64 = true;
         $iterations = 1;
 
-        $encoder = array(
-            'algorithm' => $algorithm,
+        $encoder = [
+            'algorithm'          => $algorithm,
             'encodeHashAsBase64' => $encodeHashAsBase64,
-            'iterations' => $iterations
-        );
+            'iterations'         => $iterations
+        ];
 
-        list($authProviderId,
-             $listenerId,
-             $entryPointId
-        ) = $factory->create(
+        [$authProviderId,
+         $listenerId,
+         $entryPointId
+        ] = $factory->create(
             $container,
             'foo',
-            array(
-                'realm' => $realm,
-                'profile' => $profile,
-                'encoder' => $encoder,
-                'lifetime' => $lifetime,
+            [
+                'realm'       => $realm,
+                'profile'     => $profile,
+                'encoder'     => $encoder,
+                'lifetime'    => $lifetime,
                 'date_format' => $date_format
-            ),
+            ],
             'user_provider',
             'entry_point'
         );
@@ -82,11 +76,11 @@ class FactoryTest extends \PHPUnit_Framework_TestCase
 
         $definition = $container->getDefinition('escape_wsse_authentication.encoder.foo');
         $this->assertEquals(
-            array(
+            [
                 'index_0' => $algorithm,
                 'index_1' => $encodeHashAsBase64,
                 'index_2' => $iterations
-            ),
+            ],
             $definition->getArguments()
         );
 
@@ -102,14 +96,14 @@ class FactoryTest extends \PHPUnit_Framework_TestCase
 
         $definition = $container->getDefinition('escape_wsse_authentication.provider.foo');
         $this->assertEquals(
-            array(
+            [
                 'index_1' => new Reference('user_provider'),
                 'index_2' => 'foo',
                 'index_3' => new Reference($encoderId),
                 'index_4' => new Reference($nonceCacheId),
                 'index_5' => $lifetime,
                 'index_6' => $date_format
-            ),
+            ],
             $definition->getArguments()
         );
 
@@ -119,10 +113,10 @@ class FactoryTest extends \PHPUnit_Framework_TestCase
 
         $definition = $container->getDefinition('escape_wsse_authentication.listener.foo');
         $this->assertEquals(
-            array(
+            [
                 0 => 'foo',
                 1 => new Reference($entryPointId)
-            ),
+            ],
             $definition->getArguments()
         );
 
@@ -132,10 +126,10 @@ class FactoryTest extends \PHPUnit_Framework_TestCase
 
         $definition = $container->getDefinition('escape_wsse_authentication.entry_point.foo');
         $this->assertEquals(
-            array(
+            [
                 'index_1' => $realm,
                 'index_2' => $profile
-            ),
+            ],
             $definition->getArguments()
         );
     }

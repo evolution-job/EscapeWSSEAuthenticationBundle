@@ -3,195 +3,70 @@
 namespace Escape\WSSEAuthenticationBundle\Tests\Security\Core\Authentication\Provider;
 
 use Escape\WSSEAuthenticationBundle\Security\Core\Authentication\Provider\Provider;
+use PHPUnit\Framework\TestCase;
+use Psr\Cache\InvalidArgumentException;
+use Symfony\Component\Cache\Adapter\AbstractAdapter;
+use Symfony\Component\Cache\Adapter\ArrayAdapter;
+use Symfony\Component\Cache\Adapter\Psr16Adapter;
+use Symfony\Component\Cache\CacheItem;
+use Symfony\Component\Cache\Psr16Cache;
+use Symfony\Component\Security\Core\Authentication\Token\TokenInterface;
 use Symfony\Component\Security\Core\Authentication\Token\UsernamePasswordToken as Token;
-
-use Symfony\Component\Filesystem\Filesystem;
-use Symfony\Component\Finder\Finder;
-use Symfony\Component\Security\Core\Exception\NonceExpiredException;
 use Symfony\Component\Security\Core\Encoder\MessageDigestPasswordEncoder;
-
-use Doctrine\Common\Cache\PhpFileCache;
+use Symfony\Component\Security\Core\Encoder\PasswordEncoderInterface;
+use Symfony\Component\Security\Core\Exception\AuthenticationException;
+use Symfony\Component\Security\Core\Exception\CredentialsExpiredException;
+use Symfony\Component\Security\Core\User\User;
+use Symfony\Component\Security\Core\User\UserCheckerInterface;
+use Symfony\Component\Security\Core\User\UserInterface;
+use Symfony\Component\Security\Core\User\UserProviderInterface;
 
 class CustomProvider extends Provider
 {
-    //open up scope for protected Provider's validateDigest-method
-    public function validateDigest($digest, $nonce, $created, $secret, $salt)
+    // Open up scope for protected Provider's validateDigest-method
+    public function validateDigest($digest, $nonce, $created, $secret, $salt): bool
     {
         return parent::validateDigest($digest, $nonce, $created, $secret, $salt);
     }
 }
 
-class ProviderTest extends \PHPUnit_Framework_TestCase
+class ProviderTest extends TestCase
 {
+    private PasswordEncoderInterface $hasher;
+    private AbstractAdapter $nonceCache;
+    private string $providerKey;
+    private UserInterface $user;
     private $userChecker;
     private $userProvider;
-    private $providerKey;
-    private $encoder;
-    private $user;
-    private $nonceCache;
-
-    private static $nonceDir;
-
-    //the setUpBeforeClass() template method is called before the first test of the test case class is run
-    public static function setUpBeforeClass()
-    {
-        parent::setUpBeforeClass();
-
-        self::$nonceDir = __DIR__.'/../../../../nonces/';
-    }
-
-    //the tearDownAfterClass() template method is called after the last test of the test case class is run
-    public static function tearDownAfterClass()
-    {
-        parent::tearDownAfterClass();
-
-        $fs = new Filesystem();
-
-        //cleanup
-        if($fs->exists(self::$nonceDir))
-        {
-            $fs->remove(self::$nonceDir);
-        }
-    }
-
-    private function clearDir()
-    {
-        $fs = new Filesystem();
-
-        $finder = new Finder();
-
-        $finder->files()->in(self::$nonceDir);
-
-        foreach($finder as $file)
-        {
-            $fs->remove($file->getRealPath());
-        }
-    }
-
-    protected function setUp()
-    {
-        $this->userChecker = $this->createMock('Symfony\Component\Security\Core\User\UserCheckerInterface');
-        $this->userProvider = $this->createMock('Symfony\Component\Security\Core\User\UserProviderInterface');
-        $this->providerKey = 'someproviderkey';
-        $this->encoder = new MessageDigestPasswordEncoder('sha1', true, 1);
-        $this->nonceCache = new PhpFileCache(self::$nonceDir);
-        $this->user = $this->createMock('Symfony\Component\Security\Core\User\UserInterface');
-
-        $this->clearDir();
-    }
 
     /**
-     * @test
-     * @dataProvider providerSupports
-     * @param $token
-     * @param $expected
+     * @return array[]
      */
-    public function supports($token, $expected)
+    public function dataProviderSupports(): array
     {
-        $provider = new Provider($this->userChecker, $this->userProvider, 'someproviderkey', $this->encoder, $this->nonceCache);
-        $this->assertEquals($expected, $provider->supports($token));
-    }
+        $tokenWithoutAttributes = new Token(new User('someuser', 'somesecret'), 'somesecret', 'someproviderkey');
 
-    //data provider
-    public function providerSupports()
-    {
-        $tokenWithoutAttributes = new Token('someuser', 'somepassword', 'someproviderkey');
-
-        $tokenWithAttributes = new Token('someuser', 'somepassword', 'someproviderkey');
+        $tokenWithAttributes = new Token(new User('someuser', 'somesecret'), 'somesecret', 'someproviderkey');
         $tokenWithAttributes->setAttribute('nonce', base64_encode('somenonce'));
-        $tokenWithAttributes->setAttribute('created', date(DATE_ISO8601));
+        $tokenWithAttributes->setAttribute('created', date(DATE_ATOM));
 
-        return array(
-            array($tokenWithoutAttributes, false),
-            array($tokenWithAttributes, true),
-            array($this->createMock('Symfony\Component\Security\Core\Authentication\Token\TokenInterface'), false)
-        );
+        return [
+            [$tokenWithoutAttributes, false],
+            [$tokenWithAttributes, true],
+            [$this->createMock(TokenInterface::class), false]
+        ];
     }
 
     /**
-     * @test
-     * @expectedException \Symfony\Component\Security\Core\Exception\CredentialsExpiredException
-     * @param $digest
-     * @param $nonce
-     * @param $created
-     * @param $secret
+     * @return array[]
      */
-    public function validateDigestExpireTime()
+    public function dataProviderValidateDigest(): array
     {
-        $provider = new CustomProvider($this->userChecker, $this->userProvider, $this->providerKey, $this->encoder, $this->nonceCache);
-        $provider->validateDigest(null, null, date(DATE_ISO8601, (time() - 86400)), null, null);
-    }
+        $time = date(DATE_ATOM);
 
-    /**
-     * @test
-     * @dataProvider providerValidateDigest
-     * @param $digest
-     * @param $nonce
-     * @param $created
-     * @param $secret
-     */
-    public function validateDigestWithoutNonceDir($digest, $nonce, $created, $secret, $salt, $expected)
-    {
-        $provider = new CustomProvider($this->userChecker, $this->userProvider, $this->providerKey, $this->encoder, $this->nonceCache);
-        $result = $provider->validateDigest($digest, $nonce, $created, $secret, $salt);
-        $this->assertEquals($expected, $result);
-    }
+        $hasher = new MessageDigestPasswordEncoder('sha1', true, 1);
 
-    /**
-     * @test
-     * @dataProvider providerValidateDigest
-     * @param $digest
-     * @param $nonce
-     * @param $created
-     * @param $secret
-     */
-    public function validateDigestWithNonceDir($digest, $nonce, $created, $secret, $salt, $expected)
-    {
-        $provider = new CustomProvider($this->userChecker, $this->userProvider, $this->providerKey, $this->encoder, $this->nonceCache);
-        $result = $provider->validateDigest($digest, $nonce, $created, $secret, $salt);
-        $this->assertEquals($expected, $result);
-
-        $this->assertTrue($this->nonceCache->contains($nonce));
-
-        try
-        {
-          $result = $provider->validateDigest($digest, $nonce, $created, $secret, $salt);
-          $this->fail('NonceExpiredException expected');
-        }
-        catch(NonceExpiredException $e)
-        {
-          $this->nonceCache->delete($nonce);
-        }
-    }
-
-    /**
-     * @test
-     * @dataProvider providerValidateDigest
-     * @expectedException \Symfony\Component\Security\Core\Exception\NonceExpiredException
-     * @param $digest
-     * @param $nonce
-     * @param $created
-     * @param $secret
-     */
-    public function validateDigestWithNonceDirExpectedException($digest, $nonce, $created, $secret, $salt, $expected)
-    {
-        $provider = new CustomProvider($this->userChecker, $this->userProvider, $this->providerKey, $this->encoder, $this->nonceCache);
-
-        $this->nonceCache->save($nonce, time() - 123, 0);
-
-        $provider->validateDigest($digest, $nonce, $created, $salt, $secret, $salt);
-
-        $this->nonceCache->delete($nonce);
-    }
-
-    //data provider
-    public function providerValidateDigest()
-    {
-        $time = date(DATE_ISO8601);
-
-        $encoder = new MessageDigestPasswordEncoder('sha1', true, 1);
-
-        $digest = $encoder->encodePassword(
+        $digest = $hasher->encodePassword(
             sprintf(
                 '%s%s%s',
                 'somenonce',
@@ -201,7 +76,7 @@ class ProviderTest extends \PHPUnit_Framework_TestCase
             'somesalt'
         );
 
-        $digest_slash = $encoder->encodePassword(
+        $digest_slash = $hasher->encodePassword(
             sprintf(
                 '%s%s%s',
                 's/o/m/e/n/o/n/c/e',
@@ -211,84 +86,185 @@ class ProviderTest extends \PHPUnit_Framework_TestCase
             'somesalt'
         );
 
-        return array(
-            array($digest, base64_encode('somenonce'), $time, 'somesecret', 'somesalt', true),
-            array($digest, base64_encode('somenonce'), $time, 'somewrongsecret', 'somesalt', false),
-            array($digest, base64_encode('somenonce'), $time, 'somesecret', 'somewrongsalt', false),
-            array($digest, base64_encode('somewrongnonce'), $time, 'somesecret', 'somesalt', false),
-            array($digest. '9', base64_encode('somenonce'), $time, 'somesecret', 'somesalt', false),
-            array($digest_slash, base64_encode('s/o/m/e/n/o/n/c/e'), $time, 'somesecret', 'somesalt', true)
-        );
+        return [
+            [$digest, base64_encode('somenonce'), $time, 'somesecret', 'somesalt', true],
+            [$digest, base64_encode('somenonce'), $time, 'somewrongsecret', 'somesalt', false],
+            [$digest, base64_encode('somenonce'), $time, 'somesecret', 'somewrongsalt', false],
+            [$digest, base64_encode('somewrongnonce'), $time, 'somesecret', 'somesalt', false],
+            [$digest . '9', base64_encode('somenonce'), $time, 'somesecret', 'somesalt', false],
+            [$digest_slash, base64_encode('s/o/m/e/n/o/n/c/e'), $time, 'somesecret', 'somesalt', true]
+        ];
     }
 
     /**
-     * @test
-     *
-     * @depends validateDigestWithNonceDirExpectedException
-     * @depends validateDigestWithNonceDir
-     * @depends validateDigestWithoutNonceDir
-     * @depends validateDigestExpireTime
-     * @expectedException \Symfony\Component\Security\Core\Exception\AuthenticationException
+     * @depends testValidateDigestWithNonceDirExpectedException
+     * @depends testValidateDigestWithNonceDir
+     * @depends testValidateDigestWithoutNonceDir
+     * @depends testValidateDigestExpireTime
      */
-    public function authenticateExpectedException()
+    public function testAuthenticate(): void
     {
-        $provider = new CustomProvider($this->userChecker, $this->userProvider, $this->providerKey, $this->encoder, $this->nonceCache);
+        self::assertEquals('somesecret', $this->user->getPassword());
+        self::assertEquals([], $this->user->getRoles());
+        $this->userProvider->expects($this->once())->method('loadUserByUsername')->willReturn($this->user);
 
-        $token = new Token($this->user, '', $this->providerKey);
-        $token->setAttribute('nonce', base64_encode('somenonce'));
-        $token->setAttribute('created', date(DATE_ISO8601));
+        $hasher = new MessageDigestPasswordEncoder('sha1', true, 1);
+        $time = date(DATE_ATOM);
 
-        $provider->authenticate($token);
-    }
-
-    /**
-     * @test
-     * @depends validateDigestWithNonceDirExpectedException
-     * @depends validateDigestWithNonceDir
-     * @depends validateDigestWithoutNonceDir
-     * @depends validateDigestExpireTime
-     */
-    public function authenticate()
-    {
-        $this->user->expects($this->once())->method('getPassword')->will($this->returnValue('somesecret'));
-        $this->user->expects($this->once())->method('getSalt')->will($this->returnValue('somesalt'));
-        $this->user->expects($this->once())->method('getRoles')->will($this->returnValue(array()));
-        $this->userProvider->expects($this->once())->method('loadUserByUsername')->will($this->returnValue($this->user));
-
-        $encoder = new MessageDigestPasswordEncoder('sha1', true, 1);
-        $time = date(DATE_ISO8601);
-
-        $digest = $encoder->encodePassword(
+        $digest = $hasher->encodePassword(
             sprintf(
                 '%s%s%s',
                 'somenonce',
                 $time,
                 'somesecret'
             ),
-            'somesalt'
+            null
         );
 
         $expected = new Token($this->user, $digest, $this->providerKey);
 
-        $time = date(DATE_ISO8601);
+        $time = date(DATE_ATOM);
 
-        $digest = $encoder->encodePassword(
+        $digest = $hasher->encodePassword(
             sprintf(
                 '%s%s%s',
                 'somenonce',
                 $time,
                 'somesecret'
             ),
-            'somesalt'
+            null
         );
 
         $token = new Token($this->user, $digest, $this->providerKey);
         $token->setAttribute('nonce', base64_encode('somenonce'));
         $token->setAttribute('created', $time);
 
-        $provider = new CustomProvider($this->userChecker, $this->userProvider, $this->providerKey, $this->encoder, $this->nonceCache);
+        $provider = new CustomProvider($this->userChecker, $this->userProvider, $this->providerKey, $this->hasher, $this->nonceCache);
         $result = $provider->authenticate($token);
 
-        $this->assertEquals($expected, $result);
+        self::assertEquals($expected, $result);
+    }
+
+    /**
+     * @depends testValidateDigestWithNonceDirExpectedException
+     * @depends testValidateDigestWithNonceDir
+     * @depends testValidateDigestWithoutNonceDir
+     * @depends testValidateDigestExpireTime
+     */
+    public function testAuthenticateExpectedException(): void
+    {
+        $this->expectException(AuthenticationException::class);
+        $provider = new CustomProvider($this->userChecker, $this->userProvider, $this->providerKey, $this->hasher, $this->nonceCache);
+
+        $token = new Token($this->user, '', $this->providerKey);
+        $token->setAttribute('nonce', base64_encode('somenonce'));
+        $token->setAttribute('created', date(DATE_ATOM));
+
+        $provider->authenticate($token);
+    }
+
+    /**
+     * @dataProvider dataProviderSupports
+     *
+     * @param $token
+     * @param $expected
+     */
+    public function testProvider($token, $expected): void
+    {
+        $provider = new Provider($this->userChecker, $this->userProvider, $this->providerKey, $this->hasher, $this->nonceCache);
+        self::assertEquals($expected, $provider->supports($token));
+    }
+
+    public function testValidateDigestExpireTime(): void
+    {
+        $this->expectException(CredentialsExpiredException::class);
+        $provider = new CustomProvider($this->userChecker, $this->userProvider, $this->providerKey, $this->hasher, $this->nonceCache);
+        $provider->validateDigest(null, null, date(DATE_ATOM, (time() - 86400)), null, null);
+    }
+
+    /**
+     * @dataProvider dataProviderValidateDigest
+     *
+     * @param $digest
+     * @param $nonce
+     * @param $created
+     * @param $secret
+     * @param $salt
+     * @param $expected
+     * @return void
+     * @throws InvalidArgumentException
+     */
+    public function testValidateDigestWithNonceDir($digest, $nonce, $created, $secret, $salt, $expected): void
+    {
+        $provider = new CustomProvider($this->userChecker, $this->userProvider, $this->providerKey, $this->hasher, $this->nonceCache);
+        $result = $provider->validateDigest($digest, $nonce, $created, $secret, $salt);
+
+        self::assertEquals($expected, $result);
+        self::assertTrue($this->nonceCache->hasItem($nonce));
+
+        try {
+            $provider->validateDigest($digest, $nonce, $created, $secret, $salt);
+            self::fail('CredentialsExpiredException expected');
+        } catch (CredentialsExpiredException $e) {
+            $this->nonceCache->deleteItem($nonce);
+        }
+    }
+
+    /**
+     * @dataProvider dataProviderValidateDigest
+     *
+     * @param $digest
+     * @param $nonce
+     * @param $created
+     * @param $secret
+     * @param $salt
+     * @return void
+     * @throws InvalidArgumentException
+     */
+    public function testValidateDigestWithNonceDirExpectedException($digest, $nonce, $created, $secret, $salt): void
+    {
+        $this->expectException(CredentialsExpiredException::class);
+
+        $provider = new CustomProvider($this->userChecker, $this->userProvider, $this->providerKey, $this->hasher, $this->nonceCache);
+
+        /** @var CacheItem $item */
+        $item = $this->nonceCache->getItem($nonce);
+        $item
+            ->expiresAfter(time() - 123)
+            ->set($nonce);
+        $this->nonceCache->save($item);
+
+        $provider->validateDigest($digest, $nonce, $created, $secret, $salt);
+
+        $this->nonceCache->deleteItem($nonce);
+    }
+
+    /**
+     * @dataProvider dataProviderValidateDigest
+     *
+     * @param $digest
+     * @param $nonce
+     * @param $created
+     * @param $secret
+     * @param $salt
+     * @param $expected
+     */
+    public function testValidateDigestWithoutNonceDir($digest, $nonce, $created, $secret, $salt, $expected): void
+    {
+        $provider = new CustomProvider($this->userChecker, $this->userProvider, $this->providerKey, $this->hasher, $this->nonceCache);
+        $result = $provider->validateDigest($digest, $nonce, $created, $secret, $salt);
+        self::assertEquals($expected, $result);
+    }
+
+    protected function setUp(): void
+    {
+        $this->hasher = new MessageDigestPasswordEncoder('sha1', true, 1);
+        $this->nonceCache = new Psr16Adapter(new Psr16Cache(new ArrayAdapter()), 'wsse_nonce', 300);
+        $this->providerKey = 'someproviderkey';
+        $this->user = new User('someuser', 'somesecret');
+        $this->userChecker = $this->createMock(UserCheckerInterface::class);
+        $this->userProvider = $this->createMock(UserProviderInterface::class);
+
+        $this->nonceCache->clear();
     }
 }
