@@ -112,7 +112,7 @@ firewalls:
 
 ### Specify a custom nonce cache
 
-Default value: Doctrine\Common\Cache\PhpFileCache in %kernel.cache_dir%/security/nonces
+Default value: Escape\WSSEAuthenticationBundle\Security\Core\Authentication\Cache\Psr16Adapter
 
 `app/config/security.yml`
 
@@ -120,8 +120,8 @@ Default value: Doctrine\Common\Cache\PhpFileCache in %kernel.cache_dir%/security
 services:
     #...
     cache_nonces:
-        class: Doctrine\Common\Cache\PhpFileCache
-        arguments: [%kernel.cache_dir%/security/nonces]
+        class: Symfony\Component\Cache\Adapter\ApcuAdapter
+        arguments: ['wsse_nonce', 300, 1]
 ```
 
 `app/config/security.yml`

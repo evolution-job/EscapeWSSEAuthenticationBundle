@@ -25,8 +25,7 @@
         "symfony/cache": "5.0.*",
         "symfony/framework-bundle": "5.0.*",
         "symfony/security-bundle": "5.0.*",
-        "symfony/security-core": "5.0.*",
-        "doctrine/common": "^3.0"
+        "symfony/security-core": "5.0.*"
     },
     "require-dev": {
         "symfony/finder": "5.0.*",

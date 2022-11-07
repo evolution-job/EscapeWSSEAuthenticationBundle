@@ -18,5 +18,5 @@ services:
         arguments: ['sha1', true, 1]
 
     escape_wsse_authentication.nonce_cache:
-        class:  '%escape_wsse_authentication.nonce_cache.class%'
-        arguments: ['%kernel.cache_dir%/security/nonces']
+        class: Symfony\Component\Cache\Adapter\ApcuAdapter
+        arguments: [ 'wsse_nonce', 300, 1 ]

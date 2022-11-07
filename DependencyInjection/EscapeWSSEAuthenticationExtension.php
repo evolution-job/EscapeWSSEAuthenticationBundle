@@ -24,13 +24,8 @@ class EscapeWSSEAuthenticationExtension extends Extension
         $container->setParameter('escape_wsse_authentication.encoder.class', $config['authentication_encoder_class']);
         $container->setParameter('escape_wsse_authentication.nonce_cache.class', $config['authentication_nonce_cache_class']);
 
-        // Use security.token_storage service for SF >= 2.6 and security.context for older versions.
-        // Revert to static service configuration when dropping support for SF 2.3.
-        if (interface_exists('Symfony\Component\Security\Core\Authentication\Token\Storage\TokenStorageInterface')) {
-            $tokenStorageReference = new Reference('security.token_storage');
-        } else {
-            $tokenStorageReference = new Reference('security.context');
-        }
+        $tokenStorageReference = new Reference('security.token_storage');
+
         $container->getDefinition('escape_wsse_authentication.listener')
                   ->replaceArgument(0, $tokenStorageReference);
     }
