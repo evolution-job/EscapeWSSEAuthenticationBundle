@@ -2,6 +2,7 @@
 
 namespace Escape\WSSEAuthenticationBundle\Tests\Security\Http\EntryPoint;
 
+use Symfony\Component\HttpFoundation\Response;
 use Escape\WSSEAuthenticationBundle\Security\Http\EntryPoint\EntryPoint;
 
 use PHPUnit\Framework\TestCase;
@@ -36,7 +37,7 @@ class EntryPointTest extends TestCase
         $entryPoint = new EntryPoint($logger,$realm,$profile);
         $response = $entryPoint->start($request, $authenticationException);
 
-        $this->assertEquals(401, $response->getStatusCode());
+        $this->assertEquals(Response::HTTP_UNAUTHORIZED, $response->getStatusCode());
 
         $this->assertRegExp(
             sprintf(
@@ -58,7 +59,7 @@ class EntryPointTest extends TestCase
         $entryPoint = new EntryPoint($logger,$realm,$profile);
         $response = $entryPoint->start($request);
 
-        $this->assertEquals(401, $response->getStatusCode());
+        $this->assertEquals(Response::HTTP_UNAUTHORIZED, $response->getStatusCode());
 
         $this->assertRegExp(
             sprintf(
