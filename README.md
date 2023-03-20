@@ -120,7 +120,7 @@ Default value: Escape\WSSEAuthenticationBundle\Security\Core\Authentication\Cach
 services:
     #...
     cache_nonces:
-        class: Symfony\Component\Cache\Adapter\ApcuAdapter
+        class: Symfony\Component\Cache\Adapter\FilesystemAdapter
         arguments: ['wsse_nonce', 300, 1]
 ```
 
