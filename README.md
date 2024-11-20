@@ -17,12 +17,12 @@ composer require escapestudios/wsse-authentication-bundle
 ```json
 "require": {
     ...
-    "escapestudios/wsse-authentication-bundle": "^2.2",
+    "escapestudios/wsse-authentication-bundle": "^6.0",
     ...
 }
 ```
 
-`app/AppKernel.php`
+`config/Bundles.php`
 
 ```php
 public function registerBundles()
@@ -35,15 +35,9 @@ public function registerBundles()
     ...
 ```
 
-## Commands
-
-Delete expired nonces via the `escape:wsseauthentication:nonces:delete` command that ships with this bundle; it takes the firewall name as a (required) parameter.
-
-`php app/console --env=dev escape:wsseauthentication:nonces:delete wsse_secured`
-
 ## Quick usage example
 
-`app/config/security.yml`
+`config/packages/security.yml`
 
 ```yml
 firewalls:
@@ -55,7 +49,7 @@ firewalls:
             profile: "UsernameToken" #WSSE profile (WWW-Authenticate)
 ```
 
-...that's it! Your "wsse_secured"-firewall is now secured via the (out-of-the-box) WSSE Authentication setup. You can now start calling your API endpoints: generate a X-WSSE header (Symfony\Component\Security\Core\Encoder\MessageDigestPasswordEncoder) and add it to your request (cUrl).
+...that's it! Your "wsse_secured"-firewall is now secured via the (out-of-the-box) WSSE Authentication setup. You can now start calling your API endpoints: generate a X-WSSE header (Symfony\Component\PasswordHasher\Hasher\MessageDigestPasswordHasher) and add it to your request (cUrl).
 It is strongly recommended to have a read through the more advanced configuration below once you're up and running with the basics...
 
 ## Advanced configuration
@@ -64,7 +58,7 @@ It is strongly recommended to have a read through the more advanced configuratio
 
 Default value: 300
 
-`app/config/security.yml`
+`config/packages/security.yml`
 
 ```yml
 firewalls:
@@ -79,7 +73,7 @@ firewalls:
 
 Default value: see regular expression below for ISO8601 ([check out](http://www.pelagodesign.com/blog/2009/05/20/iso-8601-date-validation-that-doesnt-suck/))
 
-`app/config/security.yml`
+`config/packages/security.yml`
 
 ```yml
 firewalls:
@@ -96,7 +90,7 @@ Default value: base 64-encoded sha1 with 1 iteration
 
 :warning: Please change the digest algorithm to a stronger one, like bcrypt :warning:
 
-`app/config/security.yml`
+`config/packages/security.yml`
 
 ```yml
 firewalls:
@@ -104,7 +98,7 @@ firewalls:
         #...
         wsse:
             #...
-            encoder: #digest algorithm
+            hasher: #digest algorithm
                 algorithm: sha1
                 encodeHashAsBase64: true
                 iterations: 1
@@ -114,7 +108,7 @@ firewalls:
 
 Default value: Escape\WSSEAuthenticationBundle\Security\Core\Authentication\Cache\Psr16Adapter
 
-`app/config/security.yml`
+`config/packages/security.yml`
 
 ```yml
 services:
@@ -124,7 +118,7 @@ services:
         arguments: ['wsse_nonce', 300, 1]
 ```
 
-`app/config/security.yml`
+`config/packages/security.yml`
 
 ```yml
 firewalls:
@@ -137,7 +131,7 @@ firewalls:
 
 ### Use multiple providers
 
-`app/config/security.yml`
+`config/packages/security.yml`
 
 ```yml
 providers:
@@ -160,7 +154,7 @@ firewalls:
 
 ### Make use of a specific user provider on a firewall with WSSE as one of multiple authentication mechanisms
 
-`app/config/security.yml`
+`config/packages/security.yml`
 
 ```yml
 providers:
@@ -179,15 +173,14 @@ firewalls:
             provider: wsse_users #don't make use of firewall's "users"-provider, but "wsse_users"-provider for WSSE
 ```
 
-### Specify custom authentication class(es)
+### Specify custom authenticator / Hasher class(es)
 
-`app/config/config.yml`
+`config/packages/escape_wsse.yml`
 
 ```yml
 # Escape WSSE authentication configuration
 escape_wsse_authentication:
-    authentication_provider_class: Escape\WSSEAuthenticationBundle\Security\Core\Authentication\Provider\Provider
-    authentication_listener_class: Escape\WSSEAuthenticationBundle\Security\Http\Firewall\Listener
-    authentication_entry_point_class: Escape\WSSEAuthenticationBundle\Security\Http\EntryPoint\EntryPoint
-    authentication_encoder_class: Symfony\Component\Security\Core\Encoder\MessageDigestPasswordEncoder
+    authentication_authenticator_class: Escape\WSSEAuthenticationBundle\Security\WSSEAuthenticator
+    authentication_hasher_class: Symfony\Component\PasswordHasher\Hasher\MessageDigestPasswordHasher
+    authentication_nonce_cache_class: Symfony\Component\Cache\Adapter\FilesystemAdapter
 ```

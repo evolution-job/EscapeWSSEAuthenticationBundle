@@ -1,7 +1,7 @@
 {
     "name": "skonsoft/wsse-authentication-bundle",
     "type": "symfony-bundle",
-    "description": "Symfony2 bundle to implement WSSE authentication",
+    "description": "Symfony bundle to implement WSSE authentication",
     "keywords": [
         "wsse",
         "authentication",
@@ -17,33 +17,42 @@
         {
             "name": "Community contributors",
             "homepage": "https://github.com/djoos/EscapeWSSEAuthenticationBundle/graphs/contributors"
+        },
+        {
+            "name": "Mathieu Boldo",
+            "email": "mathieu.boldo@entrili.com"
         }
     ],
-    "minimum-stability": "dev",
+    "minimum-stability": "stable",
     "require": {
-        "php": "^7.4 | ^8.0 | ^8.1",
-        "symfony/cache": "5.4.*",
-        "symfony/framework-bundle": "5.4.*",
-        "symfony/security-bundle": "5.4.*",
-        "symfony/security-core": "5.4.*"
+        "php": "^8.1",
+        "symfony/cache": "^5.4|^6.0",
+        "symfony/framework-bundle": "^5.4|^6.0",
+        "symfony/security-bundle": "^5.4|^6.0",
+        "symfony/security-core": "^5.4|^6.0"
     },
     "require-dev": {
-        "symfony/finder": "5.4.*",
-        "symfony/phpunit-bridge": "5.4.*",
-        "phpunit/phpunit": "^8.5",
-        "psr/simple-cache": "^1.0",
-        "rector/rector": "0.14.x-dev"
+        "roave/security-advisories": "dev-latest",
+        "symfony/finder": "^5.4|^6.0",
+        "symfony/phpunit-bridge": "^5.4|^6.0",
+        "phpunit/phpunit": "^10.0",
+        "psr/simple-cache": "^3.0",
+        "rector/rector": "^1.0"
     },
     "autoload": {
-        "psr-0": {
-            "Escape\\WSSEAuthenticationBundle": ""
+        "psr-4": {
+            "Escape\\WSSEAuthenticationBundle\\": "src/"
+        }
+    },
+    "autoload-dev": {
+        "psr-4": {
+            "Escape\\WSSEAuthenticationBundle\\Tests\\": "Tests/"
         }
     },
     "extra": {
         "symfony": {
             "allow-contrib": true,
-            "require": "5.4.*"
+            "require": "5.4.*|6.*"
         }
-    },
-    "target-dir": "Escape/WSSEAuthenticationBundle"
+    }
 }

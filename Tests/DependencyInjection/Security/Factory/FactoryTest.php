@@ -3,6 +3,8 @@
 namespace Escape\WSSEAuthenticationBundle\Tests\DependencyInjection\Security\Factory;
 
 use Escape\WSSEAuthenticationBundle\DependencyInjection\Security\Factory\Factory;
+use PHPUnit\Framework\MockObject\Exception;
+use PHPUnit\Framework\MockObject\MockObject;
 use PHPUnit\Framework\TestCase;
 use Symfony\Component\DependencyInjection\ContainerBuilder;
 use Symfony\Component\DependencyInjection\Reference;
@@ -12,8 +14,8 @@ class FactoryTest extends TestCase
     public function testPosition(): void
     {
         $factory = new Factory();
-        $result = $factory->getPosition();
-        $this->assertEquals('pre_auth', $result);
+        $result = $factory->getPriority();
+        $this->assertEquals(1, $result);
     }
 
     public function testKey(): void
@@ -24,9 +26,9 @@ class FactoryTest extends TestCase
         $this->assertEquals('wsse', $this->getFactory()->getKey());
     }
 
-    protected function getFactory()
+    protected function getFactory(): MockObject|Factory
     {
-        return $this->getMockForAbstractClass(Factory::class, []);
+        return new Factory();
     }
 
     public function testCreate(): void
@@ -34,7 +36,7 @@ class FactoryTest extends TestCase
         $factory = $this->getFactory();
 
         $container = new ContainerBuilder();
-        $container->register('escape_wsse_authentication.provider');
+        $container->register('escape_wsse_authentication.authenticator');
 
         $realm = 'somerealm';
         $profile = 'someprofile';
@@ -42,93 +44,63 @@ class FactoryTest extends TestCase
         $date_format = '/^([\+-]?\d{4}(?!\d{2}\b))((-?)((0[1-9]|1[0-2])(\3([12]\d|0[1-9]|3[01]))?|W([0-4]\d|5[0-2])(-?[1-7])?|(00[1-9]|0[1-9]\d|[12]\d{2}|3([0-5]\d|6[1-6])))([T\s]((([01]\d|2[0-3])((:?)[0-5]\d)?|24\:?00)([\.,]\d+(?!:))?)?(\17[0-5]\d([\.,]\d+)?)?([zZ]|([\+-])([01]\d|2[0-3]):?([0-5]\d)?)?)?)?$/';
 
         $algorithm = 'sha1';
-        $encodeHashAsBase64 = true;
         $iterations = 1;
 
-        $encoder = [
+        $hasher = [
             'algorithm'          => $algorithm,
-            'encodeHashAsBase64' => $encodeHashAsBase64,
+            'encodeHashAsBase64' => true,
             'iterations'         => $iterations
         ];
 
-        [$authProviderId,
-         $listenerId,
-         $entryPointId
-        ] = $factory->create(
+        $authProviderId = $factory->createAuthenticator(
             $container,
             'foo',
             [
                 'realm'       => $realm,
                 'profile'     => $profile,
-                'encoder'     => $encoder,
+                'hasher'      => $hasher,
                 'lifetime'    => $lifetime,
                 'date_format' => $date_format
             ],
-            'user_provider',
-            'entry_point'
-        );
+            'user_provider'
+        )[0];
 
-        //encoder
-        $encoderId = $factory->getEncoderId();
+        // Hasher
+        $hasherId = $factory->getHasherId();
 
-        $this->assertEquals('escape_wsse_authentication.encoder.foo', $encoderId);
-        $this->assertTrue($container->hasDefinition('escape_wsse_authentication.encoder.foo'));
+        $this->assertEquals('escape_wsse_authentication.hasher.foo', $hasherId);
+        $this->assertTrue($container->hasDefinition('escape_wsse_authentication.hasher.foo'));
 
-        $definition = $container->getDefinition('escape_wsse_authentication.encoder.foo');
+        $definition = $container->getDefinition('escape_wsse_authentication.hasher.foo');
         $this->assertEquals(
             [
                 'index_0' => $algorithm,
-                'index_1' => $encodeHashAsBase64,
+                'index_1' => true,
                 'index_2' => $iterations
             ],
             $definition->getArguments()
         );
 
-        //nonce cache
+        // Nonce cache
         $nonceCacheId = $factory->getNonceCacheId();
 
         $this->assertEquals('escape_wsse_authentication.nonce_cache.foo', $nonceCacheId);
         $this->assertTrue($container->hasDefinition('escape_wsse_authentication.nonce_cache.foo'));
 
-        //auth provider
-        $this->assertEquals('escape_wsse_authentication.provider.foo', $authProviderId);
-        $this->assertTrue($container->hasDefinition('escape_wsse_authentication.provider.foo'));
+        // Authenticator
+        $this->assertEquals('escape_wsse_authentication.authenticator.foo', $authProviderId);
+        $this->assertTrue($container->hasDefinition('escape_wsse_authentication.authenticator.foo'));
+        $definition = $container->getDefinition('escape_wsse_authentication.authenticator.foo');
 
-        $definition = $container->getDefinition('escape_wsse_authentication.provider.foo');
         $this->assertEquals(
             [
-                'index_1' => new Reference('user_provider'),
-                'index_2' => 'foo',
-                'index_3' => new Reference($encoderId),
-                'index_4' => new Reference($nonceCacheId),
-                'index_5' => $lifetime,
-                'index_6' => $date_format
-            ],
-            $definition->getArguments()
-        );
-
-        //listener
-        $this->assertEquals('escape_wsse_authentication.listener.foo', $listenerId);
-        $this->assertTrue($container->hasDefinition('escape_wsse_authentication.listener.foo'));
-
-        $definition = $container->getDefinition('escape_wsse_authentication.listener.foo');
-        $this->assertEquals(
-            [
-                0 => 'foo',
-                1 => new Reference($entryPointId)
-            ],
-            $definition->getArguments()
-        );
-
-        //entry point
-        $this->assertEquals('escape_wsse_authentication.entry_point.foo', $entryPointId);
-        $this->assertTrue($container->hasDefinition('escape_wsse_authentication.entry_point.foo'));
-
-        $definition = $container->getDefinition('escape_wsse_authentication.entry_point.foo');
-        $this->assertEquals(
-            [
-                'index_1' => $realm,
-                'index_2' => $profile
+                '$userChecker'     => new Reference('security.user_checker.foo'),
+                '$userProvider'    => new Reference('user_provider'),
+                '$eventDispatcher' => new Reference('event_dispatcher'),
+                '$nonceCache'      => new Reference($nonceCacheId),
+                '$hasher'          => new Reference($hasherId),
+                '$lifetime'        => $lifetime,
+                '$dateFormat'      => $date_format
             ],
             $definition->getArguments()
         );
